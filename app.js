@@ -5,30 +5,68 @@ var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 
+var settings = require('./config/settings');
+// var logger = require('./config/Logger.js');
+
+var session = require('express-session');
+var RedisStore = require('connect-redis')(session);
+var flash = require('connect-flash');
+
 var index = require('./routes/index');
 var users = require('./routes/users');
 
 var app = express();
+var redis_config = settings[settings.env].redis;
 
 //设置跨域访问
-/*app.all('*', function(req, res, next) {
+app.all('*', function(req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "X-Requested-With");
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Content-Length, Authorization, Accept, X-Requested-With , sessionId , token');
   res.header("Access-Control-Allow-Methods","PUT,POST,GET,DELETE,OPTIONS");
   res.header("X-Powered-By",' 3.2.1')
   res.header("Content-Type", "application/json;charset=utf-8");
-  next();
-});*/
+  if(req.method=="OPTIONS") {
+    res.sendStatus(200) ;
+  }else{
+    next();
+  }
+});
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
-
+app.use(session({
+  secret: settings.cookieSecret,
+  name: settings.cookieSecret,
+  cookie: {
+      // maxAge: 1000 * 60 * 60 * 24 * 7, // default session expiration is set to 1 hour
+      maxAge: 1000 * 60 * 30, // default session expiration is set to 1 hour
+      domain: 'localhost'
+  },
+  store: new RedisStore({
+    host: redis_config.host,
+    port: redis_config.port,
+    pass: redis_config.pass
+  }),
+  proxy: true,
+  resave: true,
+  saveUninitialized: true,
+  rolling: true   //add 刷新页面 session 过期时间重置
+}));
+app.use(flash());
 // uncomment after placing your favicon in /public
 //app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
 app.use(logger('dev'));
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
+// app.use(bodyParser.json());
+// app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json({
+  limit: '50mb'
+}));
+//app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.urlencoded({
+  limit: '10mb',
+  extended: true
+}));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
